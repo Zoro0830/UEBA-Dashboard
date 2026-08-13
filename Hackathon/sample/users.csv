@@ -1,0 +1,101 @@
+user_id,username,full_name,department,role,privilege_level,hire_date,usual_login_start,usual_login_end,office_location
+U1001,linda.johnson95,Linda Johnson,Finance,Analyst,1,2023-10-01,7:30,17:30,New York HQ
+U1002,donna.ramirez,Donna Ramirez,Finance,Analyst,1,2023-10-20,7:30,19:00,Mumbai Office
+U1003,kenneth.clark29,Kenneth Clark,Finance,Manager,2,2026-03-07,7:30,18:15,London Office
+U1004,elizabeth.wilson98,Elizabeth Wilson,Finance,Analyst,1,2025-03-19,8:00,18:15,London Office
+U1005,robert.robinson,Robert Robinson,Finance,Manager,2,2025-05-15,9:15,19:30,London Office
+U1006,george.gonzalez,George Gonzalez,Finance,Analyst,1,2023-09-12,8:00,17:00,
+U1007,sarah.robinson82,Sarah Robinson,Finance,Analyst,1,2022-02-06,8:00,19:15,New York HQ
+U1008,joshua.hernandez,Joshua Hernandez,Finance,Analyst,1,2021-01-25,8:15,19:30,Mumbai Office
+U1009,daniel.brown,Daniel Brown,Finance,Manager,2,2021-10-02,8:00,17:30,London Office
+U1010,susan.young51,Susan Young,Finance,Analyst,1,2023-04-14,7:00,19:30,London Office
+U1011,donna.ramirez75,Donna Ramirez,Finance,Manager,2,2023-10-17,7:30,18:00,New York HQ
+U1012,linda.martinez,Linda Martinez,Finance,Manager,2,2025-07-16,8:15,19:15,
+U1013,emily.smith,Emily Smith,Finance,Manager,2,2022-06-09,7:15,18:00,Remote
+U1014,james.taylor,James Taylor,Finance,Analyst,1,2022-11-27,9:30,19:00,Mumbai Office
+U1015,lisa.hernandez,Lisa Hernandez,Finance,Manager,2,2020-10-09,7:00,18:15,Mumbai Office
+U1016,patricia.thomas,Patricia Thomas,Engineering,Developer,2,2020-10-20,7:30,17:00,Remote
+U1017,emily.hernandez34,Emily Hernandez,Engineering,Developer,2,2020-03-16,9:30,17:30,London Office
+U1018,betty.white57,Betty White,Engineering,Developer,2,2023-06-22,7:00,18:00,Mumbai Office
+U1019,donna.anderson,Donna Anderson,Engineering,Team Lead,2,2025-08-04,7:00,17:15,New York HQ
+U1020,andrew.thomas36,Andrew Thomas,Engineering,Developer,2,2020-03-16,7:30,19:30,Remote
+U1021,jessica.walker,Jessica Walker,Engineering,Developer,2,2025-03-01,9:15,18:15,Remote
+U1022,sandra.brown,Sandra Brown,Engineering,Developer,2,2021-09-26,9:15,17:00,Mumbai Office
+U1023,richard.wright,Richard Wright,Engineering,DevOps Engineer,3,2024-03-12,8:15,17:00,Remote
+U1024,emily.miller,Emily Miller,engineering,Developer,2,2023-08-08,7:15,18:15,Mumbai Office
+U1025,betty.brown22,Betty Brown,engineering,Developer,2,2021-11-15,8:15,18:15,Remote
+U1026,elizabeth.gonzalez,Elizabeth Gonzalez,Engineering,Developer,2,2019-10-04,9:30,17:30,London Office
+U1027,patricia.brown75,Patricia Brown,Engineering,Team Lead,2,2020-04-18,7:00,19:00,Mumbai Office
+U1028,john.hill,John Hill,Engineering,DevOps Engineer,3,2024-11-27,9:00,19:30,New York HQ
+U1029,michelle.garcia54,Michelle Garcia,Engineering,DevOps Engineer,3,2023-12-18,9:30,18:00,London Office
+U1030,betty.rodriguez86,Betty Rodriguez,Engineering,DevOps Engineer,3,2022-09-15,7:00,18:30,New York HQ
+U1031,john.wright28,John Wright,HR,HR Specialist,1,2022-05-04,7:00,18:15,Mumbai Office
+U1032,paul.wright91,Paul Wright,HR,HR Specialist,1,2020-01-13,8:30,17:00,London Office
+U1033,linda.miller,Linda Miller,hr,HR Manager,2,2023-02-03,9:00,19:15,Mumbai Office
+U1034,thomas.allen63,Thomas Allen,HR,HR Specialist,1,2025-03-20,9:15,18:00,New York HQ
+U1035,nancy.rodriguez82,Nancy Rodriguez,HR,HR Specialist,1,2021-04-19,9:30,18:30,New York HQ
+U1036,linda.jones,Linda Jones,HR,HR Specialist,1,2022-02-10,9:30,17:15,Mumbai Office
+U1037,robert.martin,Robert Martin,HR,HR Manager,2,2023-11-24,9:00,19:00,London Office
+U1038,emily.clark,Emily Clark,HR,HR Specialist,1,2024-06-06,7:15,17:00,London Office
+U1039,mark.thomas,Mark Thomas,HR,HR Specialist,1,2021-12-18,7:15,17:00,Remote
+U1040,matthew.martin,Matthew Martin,HR,HR Specialist,1,2024-02-01,8:15,18:00,London Office
+U1041,matthew.allen52,Matthew Allen,HR,HR Specialist,1,2024-12-16,8:00,19:15,New York HQ
+U1042,michael.hill56,Michael Hill,HR,HR Manager,2,2021-05-11,9:30,17:15,Mumbai Office
+U1043,thomas.williams91,Thomas Williams,HR,HR Specialist,1,2020-06-03,9:30,19:30,Mumbai Office
+U1044,lisa.ramirez9,Lisa Ramirez,HR,HR Manager,2,2024-11-08,9:15,19:15,Remote
+U1045,daniel.sanchez90,Daniel Sanchez,HR,HR Specialist,1,2024-02-07,8:30,18:30,Mumbai Office
+U1046,michelle.torres39,Michelle Torres,HR,HR Specialist,1,2022-11-05,8:00,18:30,London Office
+U1047,sandra.lewis,Sandra Lewis,Sales,Sales Manager,2,2024-05-07,9:00,18:30,London Office
+U1048,jennifer.thomas87,Jennifer Thomas,Sales,Sales Rep,1,2024-01-08,7:00,17:00,Remote
+U1049,michelle.jones59,Michelle Jones,Sales,Sales Rep,1,2021-12-12,8:15,17:00,New York HQ
+U1050,michael.ramirez,Michael Ramirez,Sales,Sales Manager,2,2025-09-09,9:00,17:15,Mumbai Office
+U1051,sandra.king72,Sandra King,Sales,Sales Manager,2,2020-08-04,8:30,18:00,Remote
+U1052,paul.taylor,Paul Taylor,Sales,Sales Manager,2,2020-05-28,8:30,17:15,Remote
+U1053,john.jackson31,John Jackson,SALES,Sales Manager,2,2022-09-01,9:00,17:00,Mumbai Office
+U1054,anthony.martinez,Anthony Martinez,Sales,Sales Rep,1,2021-08-07,8:15,19:15,Remote
+U1055,patricia.wilson54,Patricia Wilson,Sales,Sales Rep,1,2019-10-18,8:15,17:15,London Office
+U1056,anthony.clark,Anthony Clark,Sales,Sales Manager,2,2023-10-17,8:15,18:00,Remote
+U1057,nancy.sanchez,Nancy Sanchez,Sales,Sales Manager,2,2024-10-27,9:30,17:15,New York HQ
+U1058,jennifer.ramirez18,Jennifer Ramirez,Sales,Sales Rep,1,2025-09-09,8:15,18:00,Remote
+U1059,daniel.perez98,Daniel Perez,Sales,Sales Manager,2,2021-07-11,8:00,18:00,New York HQ
+U1060,matthew.anderson,Matthew Anderson,Sales,Sales Rep,1,2025-11-26,7:00,17:30,Mumbai Office
+U1061,jessica.rodriguez,Jessica Rodriguez,Sales,Sales Rep,1,2021-01-14,9:15,18:00,New York HQ
+U1062,william.martin,William Martin,Sales,Sales Manager,2,2019-10-18,9:15,18:30,Mumbai Office
+U1063,john.nguyen,John Nguyen,Legal,Paralegal,1,2022-11-14,9:30,17:30,New York HQ
+U1064,matthew.wright55,Matthew Wright,Legal,Paralegal,1,2020-07-30,9:15,17:15,Remote
+U1065,michael.ramirez47,Michael Ramirez,Legal,Paralegal,1,2021-05-15,7:30,19:30,London Office
+U1066,michelle.wright62,Michelle Wright,Legal,Counsel,2,2019-08-11,8:15,17:00,London Office
+U1067,paul.thomas97,Paul Thomas,Legal,Counsel,2,2022-06-25,7:15,18:00,Remote
+U1068,susan.thompson34,Susan Thompson,Legal,Counsel,2,2023-02-26,9:00,19:00,New York HQ
+U1069,jessica.clark,Jessica Clark,Legal,Counsel,2,2020-09-30,8:00,17:15,Mumbai Office
+U1070,betty.thomas40,Betty Thomas,Legal,Counsel,2,2020-01-17,9:15,18:30,London Office
+U1071,matthew.robinson35,Matthew Robinson,Legal,Counsel,2,2023-09-01,7:30,17:15,New York HQ
+U1072,kenneth.lopez,Kenneth Lopez,Legal,Counsel,2,2023-02-25,9:30,19:30,London Office
+U1073,michael.gonzalez,Michael Gonzalez,Legal,Counsel,2,2024-03-29,8:00,19:30,Mumbai Office
+U1074,sarah.williams7,Sarah Williams,Legal,Paralegal,1,2020-09-30,7:00,19:15,Remote
+U1075,steven.lewis,Steven Lewis,Legal,Paralegal,1,2023-06-03,8:00,17:15,Remote
+U1076,john.torres,John Torres,Legal,Paralegal,1,2024-07-30,9:15,17:00,New York HQ
+U1077,kimberly.harris58,Kimberly Harris,Legal,Counsel,2,2019-08-27,8:15,19:30,
+U1078,michelle.miller,Michelle Miller,Legal,Paralegal,1,2023-04-15,9:00,17:00,
+U1079,emily.jones,Emily Jones,IT,Helpdesk,2,2021-03-14,9:30,18:15,
+U1080,joseph.jackson91,Joseph Jackson,IT,Security Analyst,3,2021-02-28,7:30,17:15,Mumbai Office
+U1081,margaret.davis,Margaret Davis,IT,Security Analyst,3,2024-07-31,8:00,17:00,Mumbai Office
+U1082,karen.hill96,Karen Hill,IT,Helpdesk,2,2024-11-09,8:30,18:30,Remote
+U1083,sarah.allen70,Sarah Allen,IT,Helpdesk,2,2025-05-08,9:00,18:30,London Office
+U1084,joshua.taylor,Joshua Taylor,IT,Sysadmin,4,2019-10-20,9:00,19:15,
+U1085,barbara.walker67,Barbara Walker,IT,Helpdesk,2,2024-03-20,9:15,19:15,New York HQ
+U1086,steven.thompson53,Steven Thompson,IT,Helpdesk,2,2025-01-29,7:15,18:30,Remote
+U1087,charles.sanchez,Charles Sanchez,IT,Helpdesk,2,2025-04-07,8:15,18:00,Remote
+U1088,andrew.smith85,Andrew Smith,IT,Helpdesk,2,2025-08-23,7:30,18:30,
+U1089,paul.brown27,Paul Brown,IT,Security Analyst,3,2024-10-13,8:15,19:15,New York HQ
+U1090,mary.hill,Mary Hill,IT,Helpdesk,2,2020-01-28,7:30,18:00,Mumbai Office
+U1091,linda.robinson,Linda Robinson,it,Helpdesk,2,2022-12-24,9:30,18:15,Remote
+U1092,steven.thomas,Steven Thomas,IT,Helpdesk,2,2024-02-12,9:30,19:00,New York HQ
+U1093,sarah.clark44,Sarah Clark,IT,Sysadmin,4,2023-01-30,9:15,19:30,Remote
+U1094,elizabeth.lewis69,Elizabeth Lewis,IT,Helpdesk,2,2022-07-11,9:30,18:15,London Office
+U1095,richard.thomas74,Richard Thomas,Executive,VP,3,2021-08-24,7:15,19:15,Remote
+U1096,david.allen76,David Allen,Executive,VP,3,2021-04-25,7:30,18:00,Mumbai Office
+U1097,mark.martinez10,Mark Martinez,executive,Director,3,2022-06-16,9:30,18:30,
+U1098,nancy.wright49,Nancy Wright,Executive,Director,3,2020-03-08,7:30,17:00,London Office
+U1099,joseph.garcia,Joseph Garcia,EXECUTIVE,VP,3,2021-04-11,7:30,18:00,New York HQ
+U1100,daniel.brown38,Daniel Brown,Executive,Director,3,2021-06-03,7:00,19:15,Mumbai Office

@@ -6,7 +6,6 @@ RESULT_FILE = "detection_results.json"
 
 st.set_page_config(
     page_title="UEBA SOC Dashboard",
-    page_icon="🛡️",
     layout="wide"
 )
 
@@ -25,7 +24,7 @@ def load_results():
 
 results = load_results()
 
-st.title("🛡️ UEBA Insider Threat Detection")
+st.title(" UEBA Insider Threat Detection")
 st.caption("User and Entity Behavior Analytics - SOC Dashboard")
 
 if not results:
@@ -117,7 +116,7 @@ col4.metric(
 
 st.divider()
 
-st.subheader("🚨 Suspicious Users")
+st.subheader(" Suspicious Users")
 
 display_df = filtered[
     [
@@ -151,7 +150,7 @@ else:
 
 st.divider()
 
-st.subheader("🔍 Investigate User")
+st.subheader(" Investigate User")
 
 available_users = filtered[
     filtered["risk_score"] > 0
@@ -196,17 +195,17 @@ with col3:
     level = user_data["risk_level"]
 
     if level == "CRITICAL":
-        st.error(f"🚨 {level}")
+        st.error(f" {level}")
     elif level == "HIGH":
-        st.warning(f"🔴 {level}")
+        st.warning(f" {level}")
     elif level == "MEDIUM":
-        st.info(f"🟠 {level}")
+        st.info(f" {level}")
     else:
-        st.success(f"🟢 {level}")
+        st.success(f" {level}")
 
 st.divider()
 
-st.subheader("⚠️ Why Is This User Suspicious?")
+st.subheader(" Why Is This User Suspicious?")
 
 reasons = user_data.get("reasons", [])
 
@@ -214,11 +213,11 @@ if not reasons:
     st.success("No suspicious behavior detected.")
 else:
     for reason in reasons:
-        st.warning(f"⚠️ {reason}")
+        st.warning(f" {reason}")
 
 st.divider()
 
-st.subheader("📊 Investigation Summary")
+st.subheader("Investigation Summary")
 
 col1, col2, col3 = st.columns(3)
 
@@ -239,7 +238,7 @@ col3.metric(
 
 st.divider()
 
-st.subheader("📈 Risk Distribution")
+st.subheader("Risk Distribution")
 
 risk_counts = df["risk_level"].value_counts()
 

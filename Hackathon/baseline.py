@@ -1,277 +1,418 @@
-from __future__ import annotations
-
-import argparse
 import csv
 import json
-from collections import Counter, defaultdict
-from dataclasses import dataclass
-from datetime import UTC, datetime
+from collections import defaultdict, Counter
+from datetime import datetime
 from pathlib import Path
-from statistics import mean, pstdev
-from typing import Any
 
 
-TIMESTAMP_FORMAT = "%Y-%m-%d %H:%M:%S"
+
+SAMPLE_DIR = Path("sample")
+OUTPUT_FILE = "baseline_profile.json"
 
 
-@dataclass(frozen=True)
-class LogSpec:
-	filename: str
-	action_field: str
-	action_namespace: str
+
+def clean(value):
+    if value is None:
+        return ""
+    return str(value).strip()
 
 
-LOG_SPECS = (
-	LogSpec("authentication_logs.csv", "event_type", "auth"),
-	LogSpec("application_usage_logs.csv", "application", "app"),
-	LogSpec("command_execution_logs.csv", "command", "cmd"),
-	LogSpec("endpoint_activity_logs.csv", "action", "endpoint"),
-	LogSpec("file_access_logs.csv", "action", "file"),
-	LogSpec("network_access_logs.csv", "destination_domain", "net"),
-)
+def read_csv(filename):
+    path = SAMPLE_DIR / filename
+
+    if not path.exists():
+        print(f"Warning: {filename} not found")
+        return []
+
+    with open(path, "r", encoding="utf-8", newline="") as file:
+        return list(csv.DictReader(file))
 
 
-def clean_text(value: Any) -> str:
-	if value is None:
-		return ""
-	return str(value).strip()
+def get_user(row):
+    return clean(row.get("user_id")).upper()
 
 
-def normalize_user_key(raw_user_id: str, raw_username: str) -> str:
-	user_id = clean_text(raw_user_id).upper()
-	username = clean_text(raw_username).lower()
-	if user_id:
-		return user_id
-	if username:
-		return f"USER:{username}"
-	return ""
+def parse_time(timestamp):
+    try:
+        return datetime.strptime(
+            clean(timestamp),
+            "%Y-%m-%d %H:%M:%S"
+        )
+    except:
+        return None
 
 
-def parse_timestamp(value: str) -> datetime | None:
-	candidate = clean_text(value)
-	if not candidate:
-		return None
-	try:
-		return datetime.strptime(candidate, TIMESTAMP_FORMAT)
-	except ValueError:
-		return None
+
+def load_users():
+    users = {}
+
+    for row in read_csv("users.csv"):
+
+        user_id = get_user(row)
+
+        if not user_id:
+            continue
+
+        users[user_id] = {
+            "user_id": user_id,
+            "username": clean(row.get("username")),
+            "full_name": clean(row.get("full_name")),
+            "department": clean(row.get("department")),
+            "role": clean(row.get("role")),
+            "privilege_level": clean(row.get("privilege_level")),
+            "office_location": clean(row.get("office_location")),
+            "usual_login_start": clean(row.get("usual_login_start")),
+            "usual_login_end": clean(row.get("usual_login_end"))
+        }
+
+    return users
 
 
-def parse_csv(path: Path) -> list[dict[str, str]]:
-	with path.open("r", encoding="utf-8", newline="") as handle:
-		reader = csv.DictReader(handle)
-		return [dict(row) for row in reader]
+
+def build_baseline():
+
+    users = load_users()
+
+    # Create storage for every user
+    profiles = {}
+
+    for user_id, info in users.items():
+
+        profiles[user_id] = {
+            **info,
+
+            # Login
+            "login_hours": [],
+
+            # Applications
+            "applications": Counter(),
+
+            # Commands
+            "commands": Counter(),
+
+            # Files
+            "files": Counter(),
+            "file_actions": Counter(),
+            "sensitive_files": 0,
+
+            # Network
+            "network_destinations": Counter(),
+            "external_connections": 0,
+            "network_bytes": 0,
+
+            # Endpoint
+            "processes": Counter(),
+            "endpoint_actions": Counter()
+        }
 
 
-def normalize_action(namespace: str, value: str) -> str:
-	action = clean_text(value)
-	if not action:
-		return "UNKNOWN"
-	action = action.replace("\t", " ")
-	action = " ".join(action.split())
-	if namespace in {"auth", "endpoint", "file"}:
-		action = action.upper()
-	else:
-		action = action.lower()
-	return f"{namespace}:{action}"
+    
+    auth_logs = read_csv("authentication_logs.csv")
+
+    for row in auth_logs:
+
+        user_id = get_user(row)
+
+        if user_id not in profiles:
+            continue
+
+        status = clean(row.get("status")).upper()
+        event_type = clean(row.get("event_type")).upper()
+
+        # Only successful logins are used for normal login baseline
+        if event_type == "LOGIN" and status == "SUCCESS":
+
+            timestamp = parse_time(row.get("timestamp"))
+
+            if timestamp:
+                profiles[user_id]["login_hours"].append(
+                    timestamp.hour
+                )
 
 
-def percentile(sorted_values: list[float], pct: float) -> float:
-	if not sorted_values:
-		return 0.0
-	if pct <= 0:
-		return sorted_values[0]
-	if pct >= 100:
-		return sorted_values[-1]
-	index = (len(sorted_values) - 1) * (pct / 100)
-	lower = int(index)
-	upper = min(lower + 1, len(sorted_values) - 1)
-	if lower == upper:
-		return sorted_values[lower]
-	weight = index - lower
-	return sorted_values[lower] * (1 - weight) + sorted_values[upper] * weight
+    
+    app_logs = read_csv("application_usage_logs.csv")
+
+    for row in app_logs:
+
+        user_id = get_user(row)
+
+        if user_id not in profiles:
+            continue
+
+        application = clean(row.get("application"))
+
+        if application:
+            profiles[user_id]["applications"][application] += 1
 
 
-def format_time_from_minutes(value: float) -> str:
-	minutes = max(0, min(int(round(value)), 23 * 60 + 59))
-	hour, minute = divmod(minutes, 60)
-	return f"{hour:02d}:{minute:02d}"
+   
+    command_logs = read_csv("command_execution_logs.csv")
+
+    for row in command_logs:
+
+        user_id = get_user(row)
+
+        if user_id not in profiles:
+            continue
+
+        command = clean(row.get("command"))
+
+        if command:
+
+            # Normalize whitespace
+            command = " ".join(command.split())
+
+            profiles[user_id]["commands"][command] += 1
 
 
-def load_user_metadata(sample_dir: Path) -> dict[str, dict[str, str]]:
-	users_path = sample_dir / "users.csv"
-	if not users_path.exists():
-		return {}
+   
+    file_logs = read_csv("file_access_logs.csv")
 
-	metadata: dict[str, dict[str, str]] = {}
-	for row in parse_csv(users_path):
-		user_key = normalize_user_key(row.get("user_id", ""), row.get("username", ""))
-		if not user_key:
-			continue
+    for row in file_logs:
 
-		metadata[user_key] = {
-			"user_id": clean_text(row.get("user_id", "")).upper(),
-			"username": clean_text(row.get("username", "")).lower(),
-			"full_name": clean_text(row.get("full_name", "")),
-			"department": clean_text(row.get("department", "")).upper(),
-			"role": clean_text(row.get("role", "")),
-			"privilege_level": clean_text(row.get("privilege_level", "")),
-			"office_location": clean_text(row.get("office_location", "")),
-			"usual_login_start": clean_text(row.get("usual_login_start", "")),
-			"usual_login_end": clean_text(row.get("usual_login_end", "")),
-		}
+        user_id = get_user(row)
 
-	return metadata
+        if user_id not in profiles:
+            continue
 
+        file_path = clean(row.get("file_path"))
+        action = clean(row.get("action")).upper()
 
-def build_behavior_baseline(sample_dir: Path) -> dict[str, Any]:
-	users = load_user_metadata(sample_dir)
+        if file_path:
+            profiles[user_id]["files"][file_path] += 1
 
-	per_user_daily_actions: dict[str, Counter[str]] = defaultdict(Counter)
-	per_user_action_types: dict[str, Counter[str]] = defaultdict(Counter)
-	per_user_login_candidates: dict[str, dict[str, int]] = defaultdict(dict)
+        if action:
+            profiles[user_id]["file_actions"][action] += 1
 
-	rows_seen = 0
-	rows_used = 0
+        sensitive = clean(
+            row.get("is_sensitive_location")
+        ).lower()
 
-	for spec in LOG_SPECS:
-		log_path = sample_dir / spec.filename
-		if not log_path.exists():
-			continue
-
-		for row in parse_csv(log_path):
-			rows_seen += 1
-			user_key = normalize_user_key(row.get("user_id", ""), row.get("username", ""))
-			timestamp = parse_timestamp(row.get("timestamp", ""))
-			if not user_key or timestamp is None:
-				continue
-
-			rows_used += 1
-			day_key = timestamp.date().isoformat()
-			per_user_daily_actions[user_key][day_key] += 1
-
-			action_label = normalize_action(spec.action_namespace, row.get(spec.action_field, ""))
-			per_user_action_types[user_key][action_label] += 1
-
-			if spec.filename == "authentication_logs.csv":
-				event_type = clean_text(row.get("event_type", "")).upper()
-				status = clean_text(row.get("status", "")).upper()
-				if event_type == "LOGIN" and status == "SUCCESS":
-					minutes = timestamp.hour * 60 + timestamp.minute
-					existing = per_user_login_candidates[user_key].get(day_key)
-					if existing is None or minutes < existing:
-						per_user_login_candidates[user_key][day_key] = minutes
-
-	user_keys = sorted(set(users) | set(per_user_daily_actions) | set(per_user_action_types))
-	user_profiles: list[dict[str, Any]] = []
-
-	for user_key in user_keys:
-		metadata = users.get(user_key, {})
-		daily_counts = per_user_daily_actions.get(user_key, Counter())
-		action_counter = per_user_action_types.get(user_key, Counter())
-		login_minutes = sorted(per_user_login_candidates.get(user_key, {}).values())
-
-		daily_values = list(daily_counts.values())
-		total_actions = sum(daily_values)
-		days_observed = len(daily_values)
-		avg_actions = mean(daily_values) if daily_values else 0.0
-
-		login_mean = mean(login_minutes) if login_minutes else 0.0
-		login_std = pstdev(login_minutes) if len(login_minutes) > 1 else 0.0
-
-		top_actions: list[dict[str, Any]] = []
-		for action_name, count in action_counter.most_common(10):
-			ratio = (count / total_actions) if total_actions else 0.0
-			top_actions.append(
-				{
-					"action": action_name,
-					"count": count,
-					"ratio": round(ratio, 4),
-				}
-			)
-
-		user_profiles.append(
-			{
-				"user_id": metadata.get("user_id", user_key),
-				"username": metadata.get("username", ""),
-				"full_name": metadata.get("full_name", ""),
-				"department": metadata.get("department", ""),
-				"role": metadata.get("role", ""),
-				"privilege_level": metadata.get("privilege_level", ""),
-				"office_location": metadata.get("office_location", ""),
-				"usual_login_start": metadata.get("usual_login_start", ""),
-				"usual_login_end": metadata.get("usual_login_end", ""),
-				"observation_days": days_observed,
-				"login_baseline": {
-					"successful_login_days": len(login_minutes),
-					"avg_first_login_time": format_time_from_minutes(login_mean),
-					"stddev_first_login_minutes": round(login_std, 2),
-					"typical_first_login_window": {
-						"p10": format_time_from_minutes(percentile(login_minutes, 10)),
-						"p90": format_time_from_minutes(percentile(login_minutes, 90)),
-					},
-				},
-				"action_frequency_baseline": {
-					"total_actions": total_actions,
-					"avg_actions_per_day": round(avg_actions, 2),
-					"min_actions_per_day": min(daily_values) if daily_values else 0,
-					"max_actions_per_day": max(daily_values) if daily_values else 0,
-				},
-				"action_type_baseline": {
-					"distinct_action_types": len(action_counter),
-					"top_actions": top_actions,
-				},
-			}
-		)
-
-	return {
-		"generated_at": datetime.now(UTC).strftime(TIMESTAMP_FORMAT),
-		"source_directory": str(sample_dir),
-		"rows_seen": rows_seen,
-		"rows_used": rows_used,
-		"users_profiled": len(user_profiles),
-		"profile_type": "normal_user_behavior_baseline",
-		"profiles": user_profiles,
-	}
+        if sensitive in ["true", "1", "yes"]:
+            profiles[user_id]["sensitive_files"] += 1
 
 
-def write_baseline(output_path: Path, baseline: dict[str, Any]) -> None:
-	output_path.parent.mkdir(parents=True, exist_ok=True)
-	with output_path.open("w", encoding="utf-8") as handle:
-		json.dump(baseline, handle, indent=2)
+   
+    network_logs = read_csv("network_access_logs.csv")
+
+    for row in network_logs:
+
+        user_id = get_user(row)
+
+        if user_id not in profiles:
+            continue
+
+        domain = clean(row.get("destination_domain"))
+
+        if domain:
+            profiles[user_id]["network_destinations"][domain] += 1
+
+        destination_type = clean(
+            row.get("destination_type")
+        ).upper()
+
+        if destination_type == "EXTERNAL":
+            profiles[user_id]["external_connections"] += 1
+
+        try:
+            bytes_transferred = float(
+                clean(row.get("bytes_transferred")) or 0
+            )
+        except:
+            bytes_transferred = 0
+
+        profiles[user_id]["network_bytes"] += bytes_transferred
 
 
-def main() -> None:
-	parser = argparse.ArgumentParser(
-		description=(
-			"Build a baseline of normal user behavior from sample logs, including "
-			"login times, action frequency, and action types."
-		)
-	)
-	parser.add_argument(
-		"--input-dir",
-		default="sample",
-		help="Directory containing source CSV files (default: sample)",
-	)
-	parser.add_argument(
-		"--output",
-		default="baseline_profile.json",
-		help="Path to write generated baseline JSON (default: baseline_profile.json)",
-	)
-	args = parser.parse_args()
+    endpoint_logs = read_csv("endpoint_activity_logs.csv")
 
-	sample_dir = Path(args.input_dir)
-	if not sample_dir.exists() or not sample_dir.is_dir():
-		raise FileNotFoundError(f"Input directory not found: {sample_dir}")
+    for row in endpoint_logs:
 
-	baseline = build_behavior_baseline(sample_dir)
-	output_path = Path(args.output)
-	write_baseline(output_path, baseline)
+        user_id = get_user(row)
 
-	print(f"Baseline generated for {baseline['users_profiled']} users.")
-	print(f"Rows used: {baseline['rows_used']} / {baseline['rows_seen']}")
-	print(f"Output: {output_path}")
+        if user_id not in profiles:
+            continue
+
+        process = clean(row.get("process_name"))
+        action = clean(row.get("action"))
+
+        if process:
+            profiles[user_id]["processes"][process] += 1
+
+        if action:
+            profiles[user_id]["endpoint_actions"][action] += 1
+
+
+   
+    final_profiles = {}
+
+    for user_id, profile in profiles.items():
+
+        login_hours = profile["login_hours"]
+
+        if login_hours:
+
+            common_login_hour = Counter(
+                login_hours
+            ).most_common(1)[0][0]
+
+        else:
+            common_login_hour = None
+
+
+        final_profiles[user_id] = {
+
+            "user_id": profile["user_id"],
+            "username": profile["username"],
+            "full_name": profile["full_name"],
+            "department": profile["department"],
+            "role": profile["role"],
+            "privilege_level": profile["privilege_level"],
+            "office_location": profile["office_location"],
+
+            # Login baseline
+            "login_baseline": {
+                "usual_login_start":
+                    profile["usual_login_start"],
+
+                "usual_login_end":
+                    profile["usual_login_end"],
+
+                "most_common_login_hour":
+                    common_login_hour
+            },
+
+            
+            "application_baseline": {
+                "common_applications":
+                    dict(
+                        profile["applications"].most_common(10)
+                    )
+            },
+
+            "command_baseline": {
+                "common_commands":
+                    dict(
+                        profile["commands"].most_common(10)
+                    )
+            },
+
+            "file_baseline": {
+                "common_files":
+                    dict(
+                        profile["files"].most_common(10)
+                    ),
+
+                "file_actions":
+                    dict(profile["file_actions"]),
+
+                "sensitive_file_access":
+                    profile["sensitive_files"]
+            },
+
+            "network_baseline": {
+                "common_destinations":
+                    dict(
+                        profile[
+                            "network_destinations"
+                        ].most_common(10)
+                    ),
+
+                "external_connections":
+                    profile["external_connections"],
+
+                "total_bytes":
+                    profile["network_bytes"]
+            },
+
+            "endpoint_baseline": {
+                "common_processes":
+                    dict(
+                        profile["processes"].most_common(10)
+                    ),
+
+                "common_actions":
+                    dict(profile["endpoint_actions"])
+            }
+        }
+
+
+    return final_profiles
+
+def main():
+
+    print("=" * 60)
+    print("UEBA USER BEHAVIOR BASELINE")
+    print("=" * 60)
+
+    profiles = build_baseline()
+
+    output = {
+        "generated_at":
+            datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
+
+        "users_profiled":
+            len(profiles),
+
+        "profiles":
+            profiles
+    }
+
+    with open(
+        OUTPUT_FILE,
+        "w",
+        encoding="utf-8"
+    ) as file:
+
+        json.dump(
+            output,
+            file,
+            indent=4
+        )
+
+    print()
+    print(f"Users profiled: {len(profiles)}")
+    print(f"Baseline saved: {OUTPUT_FILE}")
+    print()
+
+    # Show a small example
+    for user_id, profile in list(
+        profiles.items()
+    )[:3]:
+
+        print("-" * 60)
+
+        print(
+            f"{profile['username']} "
+            f"({user_id})"
+        )
+
+        print(
+            "Normal login:",
+            profile["login_baseline"]
+        )
+
+        print(
+            "Common applications:",
+            list(
+                profile[
+                    "application_baseline"
+                ]["common_applications"]
+                .keys()
+            )[:5]
+        )
+
+        print(
+            "Common commands:",
+            list(
+                profile[
+                    "command_baseline"
+                ]["common_commands"]
+                .keys()
+            )[:5]
+        )
 
 
 if __name__ == "__main__":
-	main()
+    main()

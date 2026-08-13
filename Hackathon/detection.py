@@ -1,293 +1,447 @@
-from __future__ import annotations
-
-import argparse
 import csv
 import json
-from collections import Counter, defaultdict
-from datetime import datetime
+from collections import Counter
 from pathlib import Path
-from typing import Any
+from datetime import datetime
 
-TIMESTAMP_FORMAT = "%Y-%m-%d %H:%M:%S"
-LOG_SPECS = (
-    ("authentication_logs.csv", "event_type", "auth"),
-    ("application_usage_logs.csv", "application", "app"),
-    ("command_execution_logs.csv", "command", "cmd"),
-    ("endpoint_activity_logs.csv", "action", "endpoint"),
-    ("file_access_logs.csv", "action", "file"),
-    ("network_access_logs.csv", "destination_domain", "net"),
-)
+SAMPLE_DIR = Path("sample")
+BASELINE_FILE = "baseline_profile.json"
+RESULT_FILE = "detection_results.json"
 
 
-def clean_text(value: Any) -> str:
-    if value is None:
-        return ""
-    return str(value).strip()
+def clean(value):
+    return "" if value is None else str(value).strip()
 
 
-def normalize_user_key(raw_user_id: str, raw_username: str) -> str:
-    user_id = clean_text(raw_user_id).upper()
-    username = clean_text(raw_username).lower()
-    if user_id:
-        return user_id
-    if username:
-        return f"USER:{username}"
-    return ""
+def read_csv(filename):
+    path = SAMPLE_DIR / filename
+
+    if not path.exists():
+        return []
+
+    with open(path, "r", encoding="utf-8", newline="") as file:
+        return list(csv.DictReader(file))
 
 
-def parse_timestamp(value: str) -> datetime | None:
-    candidate = clean_text(value)
-    if not candidate:
-        return None
+def get_user(row):
+    return clean(row.get("user_id")).upper()
+
+
+def parse_time(value):
     try:
-        return datetime.strptime(candidate, TIMESTAMP_FORMAT)
-    except ValueError:
-        return None
-
-
-def parse_csv(path: Path) -> list[dict[str, str]]:
-    with path.open("r", encoding="utf-8", newline="") as handle:
-        reader = csv.DictReader(handle)
-        return [dict(row) for row in reader]
-
-
-def normalize_action(namespace: str, value: str) -> str:
-    action = clean_text(value)
-    if not action:
-        return "UNKNOWN"
-    action = action.replace("\t", " ")
-    action = " ".join(action.split())
-    if namespace in {"auth", "endpoint", "file"}:
-        action = action.upper()
-    else:
-        action = action.lower()
-    return f"{namespace}:{action}"
-
-
-def time_to_minutes(value: Any) -> int | None:
-    candidate = clean_text(value)
-    if not candidate:
-        return None
-    try:
-        time_obj = datetime.strptime(candidate, "%H:%M")
-        return time_obj.hour * 60 + time_obj.minute
-    except ValueError:
-        return None
-
-
-def format_minutes(value: int) -> str:
-    hours, minutes = divmod(max(0, value), 60)
-    return f"{hours:02d}:{minutes:02d}"
-
-
-def mean_or_zero(values: list[int]) -> float:
-    return sum(values) / len(values) if values else 0.0
-
-
-def load_baseline(path: Path) -> dict[str, Any]:
-    with path.open("r", encoding="utf-8") as handle:
-        return json.load(handle)
-
-
-def score_severity(score: float) -> str:
-    if score >= 80:
-        return "critical"
-    if score >= 60:
-        return "high"
-    if score >= 40:
-        return "medium"
-    if score >= 20:
-        return "low"
-    return "info"
-
-
-def collect_user_activity(sample_dir: Path, target_day: str | None = None) -> dict[str, dict[str, Any]]:
-    summary: dict[str, dict[str, Any]] = defaultdict(
-        lambda: {
-            "daily_total": defaultdict(int),
-            "action_counts": Counter(),
-            "login_times": [],
-            "command_counts": Counter(),
-            "domain_counts": Counter(),
-        }
-    )
-
-    for filename, _, namespace in LOG_SPECS:
-        log_path = sample_dir / filename
-        if not log_path.exists():
-            continue
-
-        for row in parse_csv(log_path):
-            user_key = normalize_user_key(row.get("user_id", ""), row.get("username", ""))
-            timestamp = parse_timestamp(row.get("timestamp", ""))
-            if not user_key or timestamp is None:
-                continue
-
-            day_key = timestamp.date().isoformat()
-            if target_day and day_key != target_day:
-                continue
-
-            current = summary[user_key]
-            current["daily_total"][day_key] += 1
-
-            if filename == "authentication_logs.csv":
-                event_type = clean_text(row.get("event_type", "")).upper()
-                status = clean_text(row.get("status", "")).upper()
-                if event_type == "LOGIN" and status == "SUCCESS":
-                    current["login_times"].append(timestamp.hour * 60 + timestamp.minute)
-
-            action_field = row.get("action_field")
-            if filename == "application_usage_logs.csv":
-                action_field = row.get("application", "")
-            elif filename == "command_execution_logs.csv":
-                action_field = row.get("command", "")
-            elif filename == "endpoint_activity_logs.csv":
-                action_field = row.get("action", "")
-            elif filename == "file_access_logs.csv":
-                action_field = row.get("action", "")
-            elif filename == "network_access_logs.csv":
-                action_field = row.get("destination_domain", "")
-
-            normalized_action = normalize_action(namespace, action_field)
-            current["action_counts"][normalized_action] += 1
-
-            if filename == "command_execution_logs.csv":
-                current["command_counts"][normalize_action("cmd", row.get("command", ""))] += 1
-            if filename == "network_access_logs.csv":
-                current["domain_counts"][normalize_action("net", row.get("destination_domain", ""))] += 1
-
-    return summary
-
-
-def detect_anomalies(sample_dir: Path, baseline_path: Path, target_day: str | None = None) -> list[dict[str, Any]]:
-    baseline = load_baseline(baseline_path)
-    profiles = {profile["user_id"]: profile for profile in baseline.get("profiles", [])}
-    activity = collect_user_activity(sample_dir, target_day)
-
-    results: list[dict[str, Any]] = []
-
-    suspicious_commands = {
-        "cmd:systeminfo",
-        "cmd:whoami",
-        "cmd:netstat",
-        "cmd:ipconfig",
-        "cmd:ping",
-        "cmd:git pull",
-        "cmd:chmod",
-        "cmd:curl",
-        "cmd:dir",
-        "cmd:ls -la",
-        "cmd:top",
-        "cmd:cat readme.txt",
-    }
-
-    for user_key, user_activity in sorted(activity.items()):
-        profile = profiles.get(user_key)
-        if profile is None:
-            continue
-
-        reasons: list[str] = []
-        score = 0.0
-
-        daily_totals = list(user_activity["daily_total"].values())
-        if daily_totals:
-            daily_total = sum(daily_totals)
-            baseline_daily = profile.get("action_frequency_baseline", {})
-            avg_actions = float(baseline_daily.get("avg_actions_per_day", 0) or 0)
-            min_actions = baseline_daily.get("min_actions_per_day", 0) or 0
-            max_actions = max(baseline_daily.get("max_actions_per_day", 0) or 0, int(avg_actions * 2))
-            if daily_total < min_actions or daily_total > max_actions:
-                reasons.append(
-                    f"daily activity {daily_total} is outside the normal range {min_actions}-{max_actions}"
-                )
-                score += 25
-
-        login_window = profile.get("login_baseline", {}).get("typical_first_login_window", {})
-        low_minutes = time_to_minutes(login_window.get("p10"))
-        high_minutes = time_to_minutes(login_window.get("p90"))
-        for login_time in user_activity["login_times"]:
-            if low_minutes is not None and high_minutes is not None and (login_time < low_minutes or login_time > high_minutes):
-                reasons.append(
-                    f"login at {format_minutes(login_time)} is outside the normal window {format_minutes(low_minutes)}-{format_minutes(high_minutes)}"
-                )
-                score += 30
-
-        action_profile = profile.get("action_type_baseline", {}).get("top_actions", [])
-        normal_actions = {item["action"] for item in action_profile}
-        total_actions = sum(user_activity["action_counts"].values())
-        if total_actions:
-            for action_name, count in user_activity["action_counts"].most_common():
-                if action_name in normal_actions:
-                    continue
-                ratio = count / total_actions
-                if ratio >= 0.15:
-                    reasons.append(f"unusual action type {action_name} appears {count} times ({ratio:.0%})")
-                    score += 25
-
-        for command_name, count in user_activity["command_counts"].items():
-            if command_name in suspicious_commands:
-                reasons.append(f"suspicious command {command_name} observed {count} time(s)")
-                score += 25
-
-        known_network_domains = {item["action"] for item in action_profile if item["action"].startswith("net:")}
-        for domain_name, count in user_activity["domain_counts"].items():
-            if domain_name not in known_network_domains:
-                reasons.append(f"new destination {domain_name} contacted {count} time(s)")
-                score += 20
-
-        if not reasons:
-            continue
-
-        final_score = min(score, 100)
-        results.append(
-            {
-                "user_id": user_key,
-                "username": profile.get("username", ""),
-                "date": target_day or "all_days",
-                "risk_score": round(final_score, 1),
-                "severity": score_severity(final_score),
-                "reasons": reasons,
-            }
+        return datetime.strptime(
+            clean(value),
+            "%Y-%m-%d %H:%M:%S"
         )
+    except:
+        return None
 
-    return sorted(results, key=lambda item: item["risk_score"], reverse=True)
+
+def load_baseline():
+    with open(
+        BASELINE_FILE,
+        "r",
+        encoding="utf-8"
+    ) as file:
+        data = json.load(file)
+
+    return data["profiles"]
 
 
-def main() -> None:
-    parser = argparse.ArgumentParser(
-        description="Compare log activity against the normal baseline and flag anomalies."
-    )
-    parser.add_argument(
-        "--input-dir",
-        default="sample",
-        help="Directory containing the CSV log files (default: sample)",
-    )
-    parser.add_argument(
-        "--baseline",
-        default="baseline_profile.json",
-        help="Baseline JSON generated by baseline.py (default: baseline_profile.json)",
-    )
-    parser.add_argument(
-        "--date",
-        default=None,
-        help="Optional date to inspect, format YYYY-MM-DD, for example 2026-06-01",
-    )
-    args = parser.parse_args()
+def get_risk_level(score):
+    if score >= 80:
+        return "CRITICAL"
+    elif score >= 60:
+        return "HIGH"
+    elif score >= 30:
+        return "MEDIUM"
+    return "LOW"
 
-    sample_dir = Path(args.input_dir)
-    if not sample_dir.exists() or not sample_dir.is_dir():
-        raise FileNotFoundError(f"Input directory not found: {sample_dir}")
 
-    baseline_path = Path(args.baseline)
-    if not baseline_path.exists():
-        raise FileNotFoundError(f"Baseline file not found: {baseline_path}")
-
-    anomalies = detect_anomalies(sample_dir, baseline_path, args.date)
-    if not anomalies:
-        print("No anomalous behavior detected for the selected period.")
+def add_anomaly(results, user_id, points, message):
+    if user_id not in results:
         return
 
-    print(json.dumps({"anomaly_count": len(anomalies), "anomalies": anomalies}, indent=2))
+    results[user_id]["score"] += points
+    results[user_id]["anomalies"].append(message)
+
+
+def detect():
+    profiles = load_baseline()
+
+    if isinstance(profiles, dict):
+        baseline = profiles
+    else:
+        baseline = {
+            user["user_id"]: user
+            for user in profiles
+        }
+
+    results = {}
+
+    for user_id, user in baseline.items():
+        results[user_id] = {
+            "user_id": user.get("user_id", user_id),
+            "username": user.get("username", ""),
+            "full_name": user.get("full_name", ""),
+            "department": user.get("department", ""),
+            "role": user.get("role", ""),
+            "privilege_level": user.get("privilege_level", ""),
+            "score": 0,
+            "anomalies": []
+        }
+
+    auth_logs = read_csv("authentication_logs.csv")
+    failed_logins = Counter()
+
+    for row in auth_logs:
+        user_id = get_user(row)
+
+        if user_id not in results:
+            continue
+
+        status = clean(row.get("status")).upper()
+
+        if status == "FAILURE":
+            failed_logins[user_id] += 1
+
+        if status != "SUCCESS":
+            continue
+
+        timestamp = parse_time(row.get("timestamp"))
+
+        if timestamp is None:
+            continue
+
+        login_baseline = baseline[user_id].get(
+            "login_baseline",
+            {}
+        )
+
+        start = clean(
+            login_baseline.get("usual_login_start")
+        )
+
+        end = clean(
+            login_baseline.get("usual_login_end")
+        )
+
+        if not start or not end:
+            continue
+
+        try:
+            start_hour = int(start.split(":")[0])
+            end_hour = int(end.split(":")[0])
+            current_hour = timestamp.hour
+
+            if current_hour < start_hour or current_hour > end_hour:
+                add_anomaly(
+                    results,
+                    user_id,
+                    10,
+                    f"Unusual login time: {timestamp.strftime('%H:%M')}"
+                )
+        except:
+            pass
+
+    for user_id, count in failed_logins.items():
+        if count >= 5:
+            add_anomaly(
+                results,
+                user_id,
+                15,
+                f"Repeated failed logins: {count}"
+            )
+        elif count >= 3:
+            add_anomaly(
+                results,
+                user_id,
+                10,
+                f"Multiple failed logins: {count}"
+            )
+
+    app_logs = read_csv("application_usage_logs.csv")
+
+    for row in app_logs:
+        user_id = get_user(row)
+
+        if user_id not in results:
+            continue
+
+        application = clean(row.get("application"))
+
+        if not application:
+            continue
+
+        common_apps = baseline[user_id].get(
+            "application_baseline",
+            {}
+        ).get(
+            "common_applications",
+            {}
+        )
+
+        if application not in common_apps:
+            add_anomaly(
+                results,
+                user_id,
+                10,
+                f"Unusual application: {application}"
+            )
+
+    command_logs = read_csv("command_execution_logs.csv")
+
+    suspicious_patterns = [
+        "vssadmin",
+        "delete shadows",
+        "net user",
+        "net localgroup",
+        "mimikatz",
+        "powershell -enc",
+        "powershell -encodedcommand",
+        "disable firewall",
+        "set allprofiles state off",
+        "bcdedit",
+        "reg add",
+        "reg delete",
+        "wevtutil"
+    ]
+
+    for row in command_logs:
+        user_id = get_user(row)
+
+        if user_id not in results:
+            continue
+
+        command = clean(row.get("command"))
+
+        if not command:
+            continue
+
+        command_lower = command.lower()
+
+        for pattern in suspicious_patterns:
+            if pattern in command_lower:
+                add_anomaly(
+                    results,
+                    user_id,
+                    25,
+                    f"Suspicious command: {command}"
+                )
+                break
+
+        privilege = clean(
+            row.get("privilege_used")
+        ).upper()
+
+        if privilege == "ADMIN":
+            user_privilege = clean(
+                baseline[user_id].get(
+                    "privilege_level",
+                    ""
+                )
+            )
+
+            if user_privilege in ["", "1", "2"]:
+                add_anomaly(
+                    results,
+                    user_id,
+                    15,
+                    "Unexpected ADMIN command usage"
+                )
+
+    file_logs = read_csv("file_access_logs.csv")
+    file_counts = Counter()
+
+    for row in file_logs:
+        user_id = get_user(row)
+
+        if user_id not in results:
+            continue
+
+        file_counts[user_id] += 1
+
+        sensitive = clean(
+            row.get("is_sensitive_location")
+        ).lower()
+
+        action = clean(
+            row.get("action")
+        ).upper()
+
+        if sensitive in ["true", "yes", "1"]:
+            add_anomaly(
+                results,
+                user_id,
+                15,
+                "Sensitive resource accessed"
+            )
+
+            if action == "DOWNLOAD":
+                add_anomaly(
+                    results,
+                    user_id,
+                    20,
+                    "Sensitive resource downloaded"
+                )
+
+        if action == "DOWNLOAD":
+            try:
+                size = float(
+                    clean(
+                        row.get("file_size_kb")
+                    ) or 0
+                )
+            except:
+                size = 0
+
+            if size >= 100 * 1024:
+                add_anomaly(
+                    results,
+                    user_id,
+                    15,
+                    "Large file download"
+                )
+
+    for user_id, count in file_counts.items():
+        if count >= 100:
+            add_anomaly(
+                results,
+                user_id,
+                15,
+                f"Excessive file activity: {count} events"
+            )
+
+    network_logs = read_csv("network_access_logs.csv")
+    external_bytes = Counter()
+
+    for row in network_logs:
+        user_id = get_user(row)
+
+        if user_id not in results:
+            continue
+
+        destination_type = clean(
+            row.get("destination_type")
+        ).upper()
+
+        if destination_type != "EXTERNAL":
+            continue
+
+        try:
+            bytes_transferred = float(
+                clean(
+                    row.get("bytes_transferred")
+                ) or 0
+            )
+        except:
+            bytes_transferred = 0
+
+        external_bytes[user_id] += bytes_transferred
+
+    for user_id, total_bytes in external_bytes.items():
+        if total_bytes >= 100 * 1024 * 1024:
+            mb = round(
+                total_bytes / (1024 * 1024),
+                2
+            )
+
+            add_anomaly(
+                results,
+                user_id,
+                25,
+                f"Large external data transfer: {mb} MB"
+            )
+
+        if total_bytes >= 500 * 1024 * 1024:
+            add_anomaly(
+                results,
+                user_id,
+                15,
+                "Very large external data transfer"
+            )
+
+    for user_id, result in results.items():
+        try:
+            privilege = int(
+                result["privilege_level"]
+            )
+        except:
+            privilege = 0
+
+        if privilege >= 4:
+            result["score"] += 5
+        elif privilege >= 3:
+            result["score"] += 3
+
+    final_results = []
+
+    for user_id, result in results.items():
+        unique_anomalies = list(
+            dict.fromkeys(
+                result["anomalies"]
+            )
+        )
+
+        score = min(
+            int(result["score"]),
+            100
+        )
+
+        final_results.append({
+            "user_id": result["user_id"],
+            "username": result["username"],
+            "full_name": result["full_name"],
+            "department": result["department"],
+            "role": result["role"],
+            "privilege_level": result["privilege_level"],
+            "risk_score": score,
+            "risk_level": get_risk_level(score),
+            "anomaly_count": len(unique_anomalies),
+            "reasons": unique_anomalies
+        })
+
+    final_results.sort(
+        key=lambda item: item["risk_score"],
+        reverse=True
+    )
+
+    return final_results
+
+
+def main():
+    results = detect()
+
+    with open(
+        RESULT_FILE,
+        "w",
+        encoding="utf-8"
+    ) as file:
+        json.dump(
+            results,
+            file,
+            indent=4
+        )
+
+    print("=" * 60)
+    print("UEBA INSIDER THREAT DETECTION")
+    print("=" * 60)
+
+    for user in results:
+        if user["risk_score"] <= 0:
+            continue
+
+        print(
+            f"{user['username']} | "
+            f"{user['risk_score']} | "
+            f"{user['risk_level']}"
+        )
+
+        for reason in user["reasons"][:5]:
+            print(f" - {reason}")
+
+    print("=" * 60)
+    print(f"Results saved to {RESULT_FILE}")
 
 
 if __name__ == "__main__":
